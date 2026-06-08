@@ -26,8 +26,9 @@ TOP_K = 10            # chunks returned per question
 MMR_LAMBDA = 0.5      # relevance vs. diversity balance knob
 
 # ── Phase B: LLM (swap freely; compare per the plan) ─────────────────────
-LLM_PROVIDER = "deepseek"   # deepseek | openai | anthropic | qwen | ollama
-LLM_MODEL = "deepseek-chat"
+LLM_PROVIDER = "anthropic"   # anthropic | deepseek | openai | qwen | ollama
+LLM_MODEL = "claude-opus-4-8"
+LLM_MAX_TOKENS = 1024        # answers are short, grounded, citable
 
 # ── Evaluation ───────────────────────────────────────────────────────────
 BERTSCORE_TARGET = 0.80

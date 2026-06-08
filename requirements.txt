@@ -13,12 +13,17 @@ pdfplumber         # fallback for tables
 
 # Embeddings (Phase A, step 2) — text -> vectors
 sentence-transformers
+langchain-huggingface   # HuggingFaceEmbeddings wrapper (bge-large-en-v1.5)
 
 # Vector database (Phase A, step 3) — store & cosine search
 chromadb
+langchain-chroma        # LangChain Chroma vectorstore integration
 
 # Chat UI (Phase B / Step 6)
 streamlit
+
+# LLM — Phase B generator (see config.LLM_PROVIDER)
+langchain-anthropic     # Claude via ChatAnthropic (claude-opus-4-8)
 
 # Evaluation (Part 2) — metrics, stats, plots
 bert-score
