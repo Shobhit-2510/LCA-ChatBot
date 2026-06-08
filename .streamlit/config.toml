@@ -1,0 +1,12 @@
+# Streamlit configuration for LCA-ChatBot.
+
+[server]
+# Disable the source-file watcher. It otherwise walks every imported module
+# (including all of `transformers`), which tries to import the absent
+# `torchvision` and floods the console with harmless tracebacks. Turning it
+# off silences that noise; the trade-off is no hot-reload on code edits
+# (just restart the app), which is fine for running/testing the chatbot.
+fileWatcherType = "none"
+
+[logger]
+level = "warning"
