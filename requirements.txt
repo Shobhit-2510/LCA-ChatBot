@@ -1,0 +1,31 @@
+# ── LCA-ChatBot dependencies ─────────────────────────────────────────────
+# Pinning is intentionally loose for now; freeze exact versions once the
+# environment is validated (pip freeze > requirements.lock.txt).
+
+# Orchestration — chunking, retrieval chain, prompt templating
+langchain
+langchain-community
+langchain-text-splitters
+
+# PDF -> text (Phase A, step 1)
+pymupdf            # imported as `fitz`; primary extractor
+pdfplumber         # fallback for tables
+
+# Embeddings (Phase A, step 2) — text -> vectors
+sentence-transformers
+
+# Vector database (Phase A, step 3) — store & cosine search
+chromadb
+
+# Chat UI (Phase B / Step 6)
+streamlit
+
+# Evaluation (Part 2) — metrics, stats, plots
+bert-score
+rouge-score
+scikit-learn       # Cohen's Kappa, splits
+matplotlib         # score plots
+
+# Utilities
+python-dotenv      # load API keys from .env
+tqdm               # progress bars during ingestion
