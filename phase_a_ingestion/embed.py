@@ -23,14 +23,14 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 import config
 
-# BGE's recommended retrieval instruction, prepended to queries only.
+# BGE model's special instruction for queries to improve retrieval accuracy
 _BGE_QUERY_INSTRUCTION = "Represent this sentence for searching relevant passages: "
 
 
 class BGEEmbeddings(HuggingFaceEmbeddings):
-    """HuggingFaceEmbeddings that prepends BGE's query instruction."""
+    """HuggingFaceEmbeddings that prepends BGE's query instruction for better recall."""
 
-    def embed_query(self, text: str) -> list[float]:
+    def embed_query(self, text: str) -> list[float]:  # Prepend instruction to queries only
         return super().embed_query(_BGE_QUERY_INSTRUCTION + text)
 
 
@@ -38,8 +38,8 @@ class BGEEmbeddings(HuggingFaceEmbeddings):
 def get_embeddings() -> BGEEmbeddings:
     """Return a cached bge-large-en-v1.5 embeddings client (CPU)."""
     return BGEEmbeddings(
-        model_name=config.EMBEDDING_MODEL,
-        model_kwargs={"device": "cpu"},
-        encode_kwargs={"normalize_embeddings": True},        # documents
-        query_encode_kwargs={"normalize_embeddings": True},  # queries (cosine)
+        model_name=config.EMBEDDING_MODEL,  # Load BGE model from config
+        model_kwargs={"device": "cpu"},  # Run on CPU (not GPU)
+        encode_kwargs={"normalize_embeddings": True},  # L2-normalize document embeddings
+        query_encode_kwargs={"normalize_embeddings": True},  # L2-normalize queries for cosine similarity
     )

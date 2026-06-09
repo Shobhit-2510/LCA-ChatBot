@@ -18,28 +18,27 @@ from langchain_chroma import Chroma
 import config
 from phase_a_ingestion.embed import get_embeddings
 
-COLLECTION = "lca_book"
-# MMR re-ranks the top FETCH_K candidates down to TOP_K; must exceed TOP_K.
-FETCH_K = 30
+COLLECTION = "lca_book"  # Chroma collection name
+FETCH_K = 30  # MMR fetches 30 candidates, re-ranks to TOP_K
 
 
 @lru_cache(maxsize=1)
 def get_store() -> Chroma:
     """Open the persisted Chroma collection built in Phase A."""
     return Chroma(
-        collection_name=COLLECTION,
-        embedding_function=get_embeddings(),
-        persist_directory=str(config.CHROMA_DIR),
+        collection_name=COLLECTION,  # Name of the collection
+        embedding_function=get_embeddings(),  # Use same embeddings as indexing
+        persist_directory=str(config.CHROMA_DIR),  # Load from saved directory
     )
 
 
 def get_retriever():
     """Return an MMR retriever with the paper's settings."""
     return get_store().as_retriever(
-        search_type=config.SEARCH_TYPE,  # "mmr"
+        search_type=config.SEARCH_TYPE,  # Maximum Marginal Relevance
         search_kwargs={
-            "k": config.TOP_K,           # 10 chunks returned
-            "fetch_k": FETCH_K,          # candidate pool MMR re-ranks
-            "lambda_mult": config.MMR_LAMBDA,  # relevance vs. diversity
+            "k": config.TOP_K,  # Return 10 chunks
+            "fetch_k": FETCH_K,  # Re-rank from 30 candidates
+            "lambda_mult": config.MMR_LAMBDA,  # Balance relevance and diversity
         },
     )

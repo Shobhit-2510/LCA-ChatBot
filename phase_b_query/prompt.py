@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from langchain_core.prompts import ChatPromptTemplate
 
+# System message: defines role and rules for the LLM
 SYSTEM = (
     "You are an LCA expert assistant.\n"
     "Answer ONLY from the context below.\n"
@@ -22,12 +23,14 @@ SYSTEM = (
     "Respond with only the final answer — do not narrate your reasoning."
 )
 
+# Human message: context (retrieved chunks) + question, with citation instruction
 HUMAN = (
     "Context:\n{context}\n\n"
     "Question:\n{question}\n\n"
     "Answer with the chapter/page cited."
 )
 
+# Combine system + human messages into a template with {context} and {question} placeholders
 PROMPT = ChatPromptTemplate.from_messages(
     [("system", SYSTEM), ("human", HUMAN)]
 )

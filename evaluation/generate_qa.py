@@ -25,28 +25,28 @@ from pydantic import BaseModel, Field
 import config
 from phase_b_query.llm import get_llm
 
-# A "section" for balancing = a numbered book chapter (title starts with a
-# digit), e.g. "8 Scope Definition". This excludes front/back matter cleanly.
+# Pattern to identify numbered chapters like "8 Scope Definition" (for balanced sampling)
 _NUMBERED = re.compile(r"^\d+\s")
 
-CHUNKS_IN = config.DATA_PROCESSED / "chunks.jsonl"
-QA_OUT = config.DATA_PROCESSED / "qa_pairs.jsonl"
+CHUNKS_IN = config.DATA_PROCESSED / "chunks.jsonl"  # Input chunks from Phase A
+QA_OUT = config.DATA_PROCESSED / "qa_pairs.jsonl"  # Output QA pairs
 
-# Skip chunks too short to yield a meaningful question.
-MIN_CHARS = 400
-# Skip front/back matter (title page, contents, index) — not real content.
-SKIP_CHAPTERS = {"Front Matter", "Unknown"}
+MIN_CHARS = 400  # Skip very short chunks (can't make good questions)
+SKIP_CHAPTERS = {"Front Matter", "Unknown"}  # Skip front/back matter
 
 
+# Single Q&A pair (for Claude structured output)
 class QAPair(BaseModel):
     question: str = Field(description="A self-contained question answerable from the passage alone")
     answer: str = Field(description="A concise answer grounded only in the passage")
 
 
+# Container for multiple Q&A pairs (what Claude returns)
 class QASet(BaseModel):
     pairs: list[QAPair]
 
 
+# Prompt template for Claude to generate Q&A pairs from a chunk
 _INSTRUCTION = (
     "You are creating an exam for a life-cycle-assessment course. From the "
     "passage below (from an LCA textbook), write exactly {k} question-answer "
@@ -57,9 +57,11 @@ _INSTRUCTION = (
 
 
 def _load_chunks() -> list[dict]:
+    """Load chunks from Phase A, filtering for quality."""
     if not CHUNKS_IN.exists():
         raise SystemExit(f"Run Phase A first — missing {CHUNKS_IN}")
     rows = [json.loads(l) for l in open(CHUNKS_IN, encoding="utf-8")]
+    # Filter: keep only chunks that are long enough and not front/back matter
     return [
         r
         for r in rows
@@ -69,19 +71,19 @@ def _load_chunks() -> list[dict]:
 
 
 def _sample(rows: list[dict], n: int) -> list[dict]:
-    """Evenly spaced sample across the book for broad chapter coverage."""
-    if n >= len(rows):
+    """Sample evenly spaced rows for broad chapter coverage."""
+    if n >= len(rows):  # If n is large enough, return all
         return rows
-    step = len(rows) / n
+    step = len(rows) / n  # Evenly space samples across the book
     return [rows[int(i * step)] for i in range(n)]
 
 
 def _by_section(rows: list[dict]) -> dict[str, list[dict]]:
-    """Group chunks by numbered chapter (the balancing unit)."""
+    """Group chunks by numbered chapter for balanced QA generation."""
     sections: dict[str, list[dict]] = defaultdict(list)
     for r in rows:
         ch = r["metadata"].get("chapter") or ""
-        if _NUMBERED.match(ch):
+        if _NUMBERED.match(ch):  # Only keep numbered chapters (e.g., "8 Scope Definition")
             sections[ch].append(r)
     return dict(sections)
 
@@ -89,16 +91,17 @@ def _by_section(rows: list[dict]) -> dict[str, list[dict]]:
 def _gen_from_chunk(llm, row: dict, k: int) -> list[dict]:
     """Generate k pairs from one chunk; return [] on failure."""
     meta = row["metadata"]
-    prompt = _INSTRUCTION.format(k=k, text=row["text"])
+    prompt = _INSTRUCTION.format(k=k, text=row["text"])  # Fill prompt template
     try:
-        result: QASet = llm.invoke(prompt)
+        result: QASet = llm.invoke(prompt)  # Call Claude with structured output
     except Exception as e:
         print(f"      skipped a chunk ({type(e).__name__})")
-        return []
+        return []  # Skip this chunk if generation fails
+    # Format pairs with metadata for saving
     return [
         {
             "question": p.question,
-            "reference": p.answer,
+            "reference": p.answer,  # Reference answer from Claude
             "chapter": meta.get("chapter"),
             "pdf_page": meta.get("pdf_page"),
         }
@@ -107,25 +110,26 @@ def _gen_from_chunk(llm, row: dict, k: int) -> list[dict]:
 
 
 def generate_balanced(per_section: int, pairs_per_chunk: int) -> list[dict]:
-    """Generate exactly `per_section` pairs for every numbered chapter."""
-    sections = _by_section(_load_chunks())
+    """Generate exactly per_section pairs for every numbered chapter."""
+    sections = _by_section(_load_chunks())  # Group chunks by numbered chapter
     n = len(sections)
-    chunks_per_section = math.ceil(per_section / pairs_per_chunk)
+    chunks_per_section = math.ceil(per_section / pairs_per_chunk)  # Chunks needed per chapter
     print(
         f"Balanced: {per_section} pairs x {n} sections = {per_section * n} target "
         f"({chunks_per_section} chunks/section x {pairs_per_chunk} pairs)"
     )
 
-    llm = get_llm().with_structured_output(QASet)
+    llm = get_llm().with_structured_output(QASet)  # LLM with structured output
     out: list[dict] = []
+    # Process each numbered chapter in order
     for i, ch in enumerate(sorted(sections, key=lambda c: int(c.split()[0])), start=1):
-        chunks = _sample(sections[ch], chunks_per_section)
+        chunks = _sample(sections[ch], chunks_per_section)  # Sample chunks evenly
         pairs: list[dict] = []
         for row in chunks:
-            pairs.extend(_gen_from_chunk(llm, row, pairs_per_chunk))
-            if len(pairs) >= per_section:
+            pairs.extend(_gen_from_chunk(llm, row, pairs_per_chunk))  # Generate pairs
+            if len(pairs) >= per_section:  # Stop if we have enough pairs
                 break
-        pairs = pairs[:per_section]  # exactly per_section per chapter
+        pairs = pairs[:per_section]  # Keep exactly per_section pairs
         out.extend(pairs)
         print(f"  [{i}/{n}] {ch[:40]:<40} {len(pairs)} pairs  (total {len(out)})")
 
@@ -134,16 +138,18 @@ def generate_balanced(per_section: int, pairs_per_chunk: int) -> list[dict]:
 
 
 def _save(rows: list[dict]) -> None:
-    QA_OUT.parent.mkdir(parents=True, exist_ok=True)
+    """Save QA pairs to JSONL file."""
+    QA_OUT.parent.mkdir(parents=True, exist_ok=True)  # Create output directory
     with open(QA_OUT, "w", encoding="utf-8") as f:
-        for r in rows:
+        for r in rows:  # Write each pair as a JSON line
             f.write(json.dumps(r) + "\n")
     print(f"Saved {len(rows)} pairs -> {QA_OUT}")
 
 
 def generate(num_chunks: int, pairs_per_chunk: int) -> list[dict]:
-    rows = _sample(_load_chunks(), num_chunks)
-    llm = get_llm().with_structured_output(QASet)
+    """Generate QA pairs from evenly-sampled chunks (unbalanced mode)."""
+    rows = _sample(_load_chunks(), num_chunks)  # Sample chunks evenly across book
+    llm = get_llm().with_structured_output(QASet)  # LLM with structured output
     print(f"Generating from {len(rows)} chunks x {pairs_per_chunk} pairs ...")
 
     out: list[dict] = []
@@ -151,19 +157,18 @@ def generate(num_chunks: int, pairs_per_chunk: int) -> list[dict]:
         meta = row["metadata"]
         prompt = _INSTRUCTION.format(k=pairs_per_chunk, text=row["text"])
         try:
-            result: QASet = llm.invoke(prompt)
-        except Exception as e:  # one bad chunk shouldn't sink the run
+            result: QASet = llm.invoke(prompt)  # Generate pairs from this chunk
+        except Exception as e:  # Skip chunk on error, don't fail entire run
             print(f"  [{i}/{len(rows)}] skipped ({type(e).__name__})")
             continue
+        # Add each pair with metadata
         for p in result.pairs:
-            out.append(
-                {
-                    "question": p.question,
-                    "reference": p.answer,
-                    "chapter": meta.get("chapter"),
-                    "pdf_page": meta.get("pdf_page"),
-                }
-            )
+            out.append({
+                "question": p.question,
+                "reference": p.answer,
+                "chapter": meta.get("chapter"),
+                "pdf_page": meta.get("pdf_page"),
+            })
         print(f"  [{i}/{len(rows)}] {len(result.pairs)} pairs  (total {len(out)})")
 
     _save(out)
@@ -171,6 +176,7 @@ def generate(num_chunks: int, pairs_per_chunk: int) -> list[dict]:
 
 
 def main() -> None:
+    """CLI entry point with --per-section (balanced) or --num-chunks (unbalanced)."""
     ap = argparse.ArgumentParser(description="Generate the QA test set")
     ap.add_argument(
         "--per-section",
@@ -181,6 +187,7 @@ def main() -> None:
     ap.add_argument("--pairs-per-chunk", type=int, default=5, help="Q&A pairs per chunk")
     args = ap.parse_args()
 
+    # Use balanced mode if --per-section is specified, otherwise unbalanced
     if args.per_section:
         generate_balanced(args.per_section, args.pairs_per_chunk)
     else:

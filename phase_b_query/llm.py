@@ -32,12 +32,11 @@ def get_llm():
         from langchain_anthropic import ChatAnthropic
 
         return ChatAnthropic(
-            model=config.LLM_MODEL,          # claude-opus-4-8
-            max_tokens=config.LLM_MAX_TOKENS,
-            timeout=60,
-            max_retries=8,  # ride out 429s with the SDK's backoff
+            model=config.LLM_MODEL,  # Model name from config
+            max_tokens=config.LLM_MAX_TOKENS,  # Max output length
+            timeout=60,  # Request timeout in seconds
+            max_retries=8,  # Retry on rate limit (429) errors with backoff
         )
 
-    # Other providers (deepseek / openai / qwen / ollama) wired here when
-    # the plan's model comparison begins.
+    # Other providers (deepseek / openai / qwen / ollama) can be wired here
     raise NotImplementedError(f"LLM provider not yet wired: {provider}")

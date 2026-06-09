@@ -22,14 +22,15 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 import config
 from phase_a_ingestion.extract import chapter_for_page
 
-_SEP = "\n\n"  # page joiner inside a chapter
+_SEP = "\n\n"  # Separator joining pages within a chapter
 
 
 def _splitter() -> RecursiveCharacterTextSplitter:
+    """Create text splitter with paper's exact settings."""
     return RecursiveCharacterTextSplitter(
-        chunk_size=config.CHUNK_SIZE,
-        chunk_overlap=config.CHUNK_OVERLAP,
-        separators=["\n\n", "\n", ". ", " ", ""],
+        chunk_size=config.CHUNK_SIZE,  # Chunk size in characters
+        chunk_overlap=config.CHUNK_OVERLAP,  # Overlap between chunks
+        separators=["\n\n", "\n", ". ", " ", ""],  # Split prioritizing paragraphs first
     )
 
 
@@ -37,10 +38,10 @@ def _assemble_chapter(pages: list[dict]) -> tuple[str, list[int], list[dict]]:
     """Join a chapter's pages; return (text, page_start_offsets, pages)."""
     parts, offsets, cursor = [], [], 0
     for page in pages:
-        offsets.append(cursor)
-        parts.append(page["text"])
-        cursor += len(page["text"]) + len(_SEP)
-    return _SEP.join(parts), offsets, pages
+        offsets.append(cursor)  # Record start position of this page in assembled text
+        parts.append(page["text"])  # Add page text
+        cursor += len(page["text"]) + len(_SEP)  # Update cursor for next page
+    return _SEP.join(parts), offsets, pages  # Return joined text, offsets, and page list
 
 
 def chunk_pages(
@@ -51,33 +52,33 @@ def chunk_pages(
     docs: list[Document] = []
     chunk_id = 0
 
-    # Group consecutive pages by their chapter (pages are already in order).
+    # Group pages by chapter (pages already in order)
     keyed = [
         (chapter_for_page(chapter_index, p["pdf_page"]), p) for p in cleaned_pages
     ]
     for chapter, group in groupby(keyed, key=lambda kp: kp[0]):
-        pages = [p for _, p in group]
-        text, page_offsets, pages = _assemble_chapter(pages)
+        pages = [p for _, p in group]  # Extract pages for this chapter
+        text, page_offsets, pages = _assemble_chapter(pages)  # Join pages with separator
 
         cursor = 0
-        for raw in splitter.split_text(text):
-            # Locate this chunk's start offset (on the raw text) to find its
-            # source page, before trimming the leading separator artifact.
+        for raw in splitter.split_text(text):  # Split text into chunks
+            # Find chunk's start position in assembled text to identify source page
             start = text.find(raw, max(0, cursor - config.CHUNK_OVERLAP))
             if start == -1:
                 start = cursor
             cursor = start + len(raw)
 
-            # The ". " separator stays attached to the front of the next
-            # chunk; trim the dangling leading punctuation/whitespace.
+            # Remove leading separators/punctuation artifact from splitting
             content = re.sub(r"^[\s.]+", "", raw).strip()
-            if not content:
+            if not content:  # Skip empty chunks
                 continue
 
+            # Find which page this chunk came from using binary search on page offsets
             pi = bisect.bisect_right(page_offsets, start) - 1
             pi = max(0, pi)
             src = pages[pi]
 
+            # Create Document with chunk content and metadata (chapter, page, etc.)
             docs.append(
                 Document(
                     page_content=content,
