@@ -15,6 +15,16 @@ from __future__ import annotations
 
 import numpy as np
 
+# Placeholder for empty/blank model answers. An empty string is a legitimate
+# (bad) answer — e.g. the model returned nothing — but bert-score's empty-text
+# path crashes on transformers 5.x, so map it to a sentinel that scores low
+# rather than erroring.
+_EMPTY = "[no answer]"
+
+
+def _safe(texts: list[str]) -> list[str]:
+    return [t if t and t.strip() else _EMPTY for t in texts]
+
 
 def bertscore_f1(predictions: list[str], references: list[str]) -> float:
     """Mean BERTScore F1 (semantic similarity).
@@ -25,7 +35,7 @@ def bertscore_f1(predictions: list[str], references: list[str]) -> float:
     """
     from bert_score import score
 
-    _, _, f1 = score(predictions, references, lang="en")
+    _, _, f1 = score(_safe(predictions), _safe(references), lang="en")
     return float(f1.mean())
 
 
@@ -34,8 +44,8 @@ def cosine_sim(predictions: list[str], references: list[str]) -> float:
     from phase_a_ingestion.embed import get_embeddings
 
     emb = get_embeddings()
-    p = np.array(emb.embed_documents(predictions))
-    r = np.array(emb.embed_documents(references))
+    p = np.array(emb.embed_documents(_safe(predictions)))
+    r = np.array(emb.embed_documents(_safe(references)))
     # Embeddings are L2-normalized, so the row-wise dot product is the cosine.
     sims = np.sum(p * r, axis=1) / (
         np.linalg.norm(p, axis=1) * np.linalg.norm(r, axis=1)

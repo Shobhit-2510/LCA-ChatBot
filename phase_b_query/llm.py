@@ -35,7 +35,7 @@ def get_llm():
             model=config.LLM_MODEL,          # claude-opus-4-8
             max_tokens=config.LLM_MAX_TOKENS,
             timeout=60,
-            max_retries=2,
+            max_retries=8,  # ride out 429s with the SDK's backoff
         )
 
     # Other providers (deepseek / openai / qwen / ollama) wired here when
