@@ -16,7 +16,7 @@ import os
 import sys
 
 # Fix sys.path so imports work (Streamlit adds app/ but not project root)
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # added root directory to path for imports
 
 import streamlit as st
 from langchain_core.messages import AIMessage, HumanMessage
@@ -24,7 +24,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from phase_b_query.rag_pipeline import answer
 
 # Configure page metadata
-st.set_page_config(page_title="Chat-LCA", page_icon="📖")
+st.set_page_config(page_title="Chat-LCA", page_icon="🤖")
 st.title("Chat-LCA")  # Page title
 st.caption("powered by Hauschild et al. — *LCA: Theory and Practice*")  # Subtitle
 
@@ -62,14 +62,15 @@ for msg in st.session_state.messages:
             render_sources(msg.get("sources", []))
 
 # Handle new question from user
-if question := st.chat_input("Ask a question about LCA…"):
+question = st.chat_input("Ask a question about LCA…")  # Input box for user question
+if question:
     # Show user's question immediately
-    with st.chat_message("user"):
-        st.markdown(question)
+    with st.chat_message("user"): # create a user message bubble
+        st.markdown(question) # display the user's question in the bubble
 
     # Convert prior turns to LangChain format for context (history excludes this question)
     history = to_lc_history(st.session_state.messages)
-    st.session_state.messages.append({"role": "user", "content": question})
+    st.session_state.messages.append({"role": "user", "content": question}) # Save user question to history (for next turn's context)
 
     # Get RAG answer with loading indicator
     with st.chat_message("assistant"):
