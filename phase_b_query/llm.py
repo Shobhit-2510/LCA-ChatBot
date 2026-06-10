@@ -20,10 +20,10 @@ from dotenv import load_dotenv
 
 import config
 
-load_dotenv()  # pull ANTHROPIC_API_KEY (etc.) from .env
+load_dotenv()  # pull ANTHROPIC_API_KEY (etc.) from .env, first search in current directory, then parent directories
 
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=1) # Cache the value of the function for 1 parameter value, so subsequent calls with the same parameter return the cached result instead of recomputing it.
 def get_llm():
     """Return the chat model for the configured provider."""
     provider = config.LLM_PROVIDER.lower()

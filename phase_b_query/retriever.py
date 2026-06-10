@@ -38,7 +38,7 @@ def get_retriever():
         search_type=config.SEARCH_TYPE,  # Maximum Marginal Relevance
         search_kwargs={
             "k": config.TOP_K,  # Return 10 chunks
-            "fetch_k": FETCH_K,  # Re-rank from 30 candidates
+            "fetch_k": FETCH_K,  # Fetch 30 candidates, then pick the 10 best (diverse + relevant)
             "lambda_mult": config.MMR_LAMBDA,  # Balance relevance and diversity
         },
     )

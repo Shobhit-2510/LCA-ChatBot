@@ -1,14 +1,16 @@
 """Prompt template (Step 5) — the grounding prompt from slide 9.
 
-Slide 9's single prompt is split into a system message (role + grounding
-rules) and a human message (retrieved context + question), which is the
-idiomatic shape for a chat model.
+The prompt from slide 9 is split into two parts:
+- System message: tells the LLM what role to play and how to behave
+- Human message: contains the retrieved context and user's question
+This two-part format is the standard way to structure chat prompts.
 
-The final-answer-only line is deliberate: with extended thinking off,
-Opus 4.8 can otherwise spill reasoning into the visible answer.
+The instruction "respond with only the final answer" is important: without it,
+Claude might show its thinking process in the answer, which we don't want.
 
 Public API:
-    PROMPT : ChatPromptTemplate  with {context} and {question} variables
+    PROMPT : A chat prompt template with {context} and {question} placeholders
+             that you fill in with the actual context and user question.
 """
 
 from __future__ import annotations
@@ -21,7 +23,7 @@ SYSTEM = (
     "Answer ONLY from the context below.\n"
     "If the answer is not there, say so.\n"
     "Respond with only the final answer — do not narrate your reasoning."
-)
+) # these all are combined into a single string with newlines.
 
 # Human message: context (retrieved chunks) + question, with citation instruction
 HUMAN = (
