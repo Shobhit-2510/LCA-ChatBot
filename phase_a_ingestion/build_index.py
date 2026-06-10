@@ -58,7 +58,11 @@ def build_vector_store(docs: list) -> Chroma:  # Embed and persist chunks to vec
         if d.metadata.get("book_page") is None:  # Remove missing book_page keys
             d.metadata.pop("book_page", None)
 
-    if config.CHROMA_DIR.exists():  # Remove old store if rebuilding
+    """
+    If the Chroma directory already exists, remove it to ensure a clean rebuild.
+    This prevents issues with stale or corrupted vector data and ensures that the new embeddings are stored correctly.
+    """
+    if config.CHROMA_DIR.exists():  
         print(f"      removing existing store at {config.CHROMA_DIR} (rebuild)")
         shutil.rmtree(config.CHROMA_DIR)
 
@@ -96,6 +100,6 @@ def main() -> None:  # Run full Phase A pipeline
         print(f"  -> {meta.get('chapter')} | pdf p.{meta.get('pdf_page')}")
         print(f"     {h.page_content[:120]!r}")
 
-
+# Run the main function if this script is executed directly, if imported as a module, the main function will not run automatically.
 if __name__ == "__main__":
     main()
