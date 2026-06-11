@@ -175,7 +175,7 @@ def generate_balanced(per_section: int, pairs_per_chunk: int) -> list[dict]:
 def _save(rows: list[dict]) -> None:
     """Save QA pairs to JSONL file."""
     QA_OUT.parent.mkdir(parents=True, exist_ok=True)  # Create output directory
-    with open(QA_OUT, "w", encoding="utf-8") as f:
+    with open(QA_OUT, "a", encoding="utf-8") as f: # w = write mode (previous QA pairs will get delete), a = append mode
         for r in rows:  # Write each pair as a JSON line
             f.write(json.dumps(r) + "\n")
     print(f"Saved {len(rows)} pairs -> {QA_OUT}")
