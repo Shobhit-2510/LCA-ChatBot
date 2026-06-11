@@ -16,18 +16,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
-import random  # Optional: for random sampling instead of evenly spaced
-import re
-from collections import defaultdict
+import random
 
 from pydantic import BaseModel, Field
 
 import config
 from phase_b_query.llm import get_llm
-
-# Pattern to identify numbered chapters like "8 Scope Definition" (for balanced sampling)
-_NUMBERED = re.compile(r"^\d+\s")
 
 CHUNKS_IN = config.DATA_PROCESSED / "chunks.jsonl"  # Input chunks of book from Phase A was created when building the vector database
 QA_OUT = config.DATA_PROCESSED / "qa_pairs.jsonl"  # Output QA pairs
@@ -83,18 +77,6 @@ def _sample(rows: list[dict], n: int) -> list[dict]:
     random.shuffle(rows)  # Randomize order could be helpful if random QA generation is desired
     return [rows[int(i * step)] for i in range(n)]
 
-# Input looks like: [{"text": "...", "metadata": {"chapter": "8 Scope Definition"}}, {"text": "...", "metadata": {"chapter": "9 Methodology"}}, ...]
-# Output is a dict grouping rows by chapter: {"8 Scope Definition": [{"text": "...", "metadata": {...}}, ...], "9 Methodology": [{"text": "...", "metadata": {...}}, ...], ...}
-def _by_section(rows: list[dict]) -> dict[str, list[dict]]:
-    """Group chunks by numbered chapter for balanced QA generation."""
-    sections: dict[str, list[dict]] = defaultdict(list)
-    for r in rows:
-        ch = r["metadata"].get("chapter") or ""
-        if _NUMBERED.match(ch):  # Only keep numbered chapters (e.g., "8 Scope Definition") because we want to balance by main content chapters, not front/back matter
-            sections[ch].append(r)
-    return dict(sections)
-
-
 def _gen_from_chunk(llm, row: dict, k: int) -> list[dict]:
     """Generate k question-answer pairs from a single text chunk using Claude.
 
@@ -130,46 +112,6 @@ def _gen_from_chunk(llm, row: dict, k: int) -> list[dict]:
         }
         for p in result.pairs
     ]
-
-
-def generate_balanced(per_section: int, pairs_per_chunk: int) -> list[dict]:
-    """Generate balanced QA pairs across all numbered chapters.
-
-    Distributes QA pair generation uniformly across chapters by sampling chunks evenly
-    from each chapter and generating pairs until the target per-chapter quota is met.
-    Ensures consistent representation across the document structure.
-
-    Args:
-        per_section: Target number of QA pairs to generate per chapter.
-        pairs_per_chunk: Number of QA pairs to generate from each chunk.
-
-    Returns:
-        List of QA pair dictionaries. Pairs are also persisted to JSONL file.
-    """
-    sections = _by_section(_load_chunks())  # Group chunks by numbered chapter
-    n = len(sections)
-    chunks_per_section = math.ceil(per_section / pairs_per_chunk)  # Chunks needed per chapter
-    print(
-        f"Balanced: {per_section} pairs x {n} sections = {per_section * n} target "
-        f"({chunks_per_section} chunks/section x {pairs_per_chunk} pairs)"
-    )
-
-    llm = get_llm().with_structured_output(QASet)  # LLM with structured output
-    out: list[dict] = []
-    # Process each numbered chapter in order
-    for i, ch in enumerate(sorted(sections, key=lambda c: int(c.split()[0])), start=1):
-        chunks = _sample(sections[ch], chunks_per_section)  # Sample chunks evenly
-        pairs: list[dict] = []
-        for row in chunks:
-            pairs.extend(_gen_from_chunk(llm, row, pairs_per_chunk))  # Generate pairs
-            if len(pairs) >= per_section:  # Stop if we have enough pairs
-                break
-        pairs = pairs[:per_section]  # Keep exactly per_section pairs
-        out.extend(pairs)
-        print(f"  [{i}/{n}] {ch[:40]:<40} {len(pairs)} pairs  (total {len(out)})")
-
-    _save(out)
-    return out
 
 
 def _save(rows: list[dict]) -> None:
@@ -225,23 +167,42 @@ def generate(num_chunks: int, pairs_per_chunk: int) -> list[dict]:
 
 
 def main() -> None:
-    """CLI entry point with --per-section (balanced) or --num-chunks (unbalanced)."""
-    ap = argparse.ArgumentParser(description="Generate the QA test set")
+    """CLI entry point for unbalanced QA pair generation.
+
+    Generates QA pairs by sampling chunks uniformly across the entire document.
+    Total pairs generated = num_chunks × pairs_per_chunk
+
+    Arguments:
+        --num-chunks N: Number of chunks to sample (default: 20)
+        --pairs-per-chunk K: QA pairs per chunk (default: 5)
+
+    Usage examples:
+        Generate 10 total pairs (2 chunks × 5 pairs):
+            python -m evaluation.generate_qa --num-chunks 2
+
+        Generate 50 total pairs (10 chunks × 5 pairs):
+            python -m evaluation.generate_qa --num-chunks 10
+
+        Generate 100 total pairs (20 chunks × 5 pairs):
+            python -m evaluation.generate_qa
+    """
+    ap = argparse.ArgumentParser(description="Generate QA pairs from sampled chunks")
     ap.add_argument(
-        "--per-section",
+        "--num-chunks",
         type=int,
-        help="balanced mode: generate exactly N pairs per numbered chapter",
+        default=20,
+        help="number of chunks to sample from entire document (default: 20)",
     )
-    ap.add_argument("--num-chunks", type=int, default=20, help="(unbalanced) chunks to sample")
-    ap.add_argument("--pairs-per-chunk", type=int, default=5, help="Q&A pairs per chunk")
+    ap.add_argument(
+        "--pairs-per-chunk",
+        type=int,
+        default=5,
+        help="QA pairs to generate from each chunk (default: 5)",
+    )
     args = ap.parse_args()
 
-    # Use balanced mode if --per-section is specified(means default=10 is given), otherwise unbalanced
-    # here it is running as unbalanced 
-    if args.per_section:
-        generate_balanced(args.per_section, args.pairs_per_chunk)
-    else:
-        generate(args.num_chunks, args.pairs_per_chunk)
+    # Generate QA pairs using unbalanced mode
+    generate(args.num_chunks, args.pairs_per_chunk)
 
 
 if __name__ == "__main__":
